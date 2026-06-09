@@ -1,0 +1,6 @@
+{
+  "name": "AI Crop Doctor",
+  "description": "An intelligent, multi-lingual agricultural AI diagnostic app supporting crop disease analysis, soil advisory chat, weather farming guidelines, and local expert recommendations.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

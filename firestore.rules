@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper 1: Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Only access input data during create and update operations
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Access current document on update and delete
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Rules / Blueprints for Entities ---
+
+    function isValidUserProfile(data) {
+      return data.id == request.auth.uid 
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 100
+        && data.email is string && data.email.size() <= 200
+        && (!('region' in data) || (data.region is string && data.region.size() <= 100))
+        && (!('cropType' in data) || (data.cropType is string && data.cropType.size() <= 100))
+        && data.createdAt == request.time
+        && data.keys().hasAll(['id', 'displayName', 'email', 'createdAt'])
+        && data.keys().size() >= 4 && data.keys().size() <= 6;
+    }
+
+    function isValidDiagnosticReport(data) {
+      return data.cropType is string && data.cropType.size() <= 100
+        && data.createdBy == request.auth.uid
+        && data.report is string && data.report.size() <= 100000
+        && data.confidence is int && data.confidence >= 0 && data.confidence <= 100
+        && data.createdAt == request.time
+        && (!('imagePreviewUrl' in data) || (data.imagePreviewUrl is string && data.imagePreviewUrl.size() <= 5000000))
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 100))
+        && data.keys().hasAll(['cropType', 'createdBy', 'report', 'confidence', 'createdAt'])
+        && data.keys().size() >= 5 && data.keys().size() <= 7;
+    }
+
+    function isValidAdvisoryMessage(data) {
+      return data.userId == request.auth.uid
+        && data.role is string && (data.role == 'user' || data.role == 'assistant')
+        && data.content is string && data.content.size() <= 10000
+        && data.createdAt == request.time
+        && data.keys().hasAll(['userId', 'role', 'content', 'createdAt'])
+        && data.keys().size() == 4;
+    }
+
+    // --- Collection Matches ---
+
+    // Users & nested structures
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) 
+        && (incoming().id == existing().id) // id is immortal
+        && (incoming().createdAt == existing().createdAt) // createdAt is immortal
+        && (incoming().email == existing().email) // email remains the same
+        && isValidUserProfile(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'region', 'cropType']);
+      allow delete: if false; // Profiles are permanent records
+
+      // Historical chats nested structure
+      match /chats/{chatId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(chatId) && isValidAdvisoryMessage(incoming());
+        allow update, delete: if false; // Chat histories are immutable streams
+      }
+    }
+
+    // Diagnostics Collection
+    match /diagnostics/{diagnosticId} {
+      allow get: if isSignedIn() && existing().createdBy == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(diagnosticId) && isValidDiagnosticReport(incoming());
+      allow update: if isSignedIn() 
+        && existing().createdBy == request.auth.uid
+        && incoming().createdBy == existing().createdBy // Creator is immortal
+        && incoming().createdAt == existing().createdAt // Creation date is immortal
+        && isValidDiagnosticReport(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['cropType', 'report', 'confidence', 'imagePreviewUrl', 'mimeType']);
+      allow delete: if isSignedIn() && existing().createdBy == request.auth.uid;
+    }
+  }
+}

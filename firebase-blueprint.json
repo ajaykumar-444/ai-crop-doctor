@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "DiagnosticReport": {
+      "title": "DiagnosticReport",
+      "description": "Visual Crop leaf diagnosis report card persisted by user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the diagnosis" },
+        "cropType": { "type": "string", "description": "Type of crop selected" },
+        "createdBy": { "type": "string", "description": "UID of the user who initiated the diagnosis" },
+        "imagePreviewUrl": { "type": "string", "description": "Base64 image preview URL" },
+        "mimeType": { "type": "string", "description": "Mime type of the uploaded media file" },
+        "report": { "type": "string", "description": "The formatted AI markdown diagnosis report content" },
+        "confidence": { "type": "integer", "description": "AI analysis confidence percentage level (e.g. 92)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when this record was saved" }
+      },
+      "required": ["cropType", "createdBy", "report", "confidence", "createdAt"]
+    },
+    "AdvisoryMessage": {
+      "title": "AdvisoryMessage",
+      "description": "Single message inside an advisory chat session with Mitti-Doc",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID" },
+        "userId": { "type": "string", "description": "UID of the owner" },
+        "role": { "type": "string", "enum": ["user", "assistant"], "description": "Role of the message sender" },
+        "content": { "type": "string", "description": "Message content text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation" }
+      },
+      "required": ["userId", "role", "content", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered profile record for farmers and extension agents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Farm owner human name" },
+        "email": { "type": "string", "format": "email", "description": "Primary communication email" },
+        "region": { "type": "string", "description": "Farming location climate zone" },
+        "cropType": { "type": "string", "description": "Default plantation type" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when account was first created" }
+      },
+      "required": ["id", "displayName", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/diagnostics/{diagnosticId}": {
+      "schema": "DiagnosticReport",
+      "description": "Scanned leaf disease diagnostic records"
+    },
+    "/users/{userId}/chats/{chatId}": {
+      "schema": "AdvisoryMessage",
+      "description": "Historical NPK & soil advisory interactions"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Farmer profile meta data preferences"
+    }
+  }
+}
